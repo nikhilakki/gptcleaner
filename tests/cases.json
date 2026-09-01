@@ -1,0 +1,297 @@
+{
+  "_comment": "Shared fixtures: both engines run these exact cases, which is what keeps them from drifting. Invisible characters are written as \\uXXXX escapes on purpose - literal ones would be destroyed by running gptcleaner over this repo. Options use the JS camelCase names; the Python runner maps them.",
+  "cases": [
+    {
+      "name": "zero width space is deleted",
+      "in": "a\u200bb",
+      "out": "ab"
+    },
+    {
+      "name": "no-break space becomes a real space, not nothing",
+      "in": "a\u00a0b",
+      "out": "a b"
+    },
+    {
+      "name": "byte order mark is stripped",
+      "in": "\ufeffhello",
+      "out": "hello"
+    },
+    {
+      "name": "soft hyphen is removed",
+      "in": "soft\u00adhyphen",
+      "out": "softhyphen"
+    },
+    {
+      "name": "hidden tag-block watermark characters are removed",
+      "in": "clean\udb40\udc57\udb40\udc54\udb40\udc46 text",
+      "out": "clean text"
+    },
+    {
+      "name": "bidi override is removed",
+      "in": "a\u202eb",
+      "out": "ab"
+    },
+    {
+      "name": "word joiner is removed",
+      "in": "a\u2060b",
+      "out": "ab"
+    },
+    {
+      "name": "hangul filler is removed",
+      "in": "a\u3164b",
+      "out": "ab"
+    },
+    {
+      "name": "ideographic space becomes a plain space",
+      "in": "a\u3000b",
+      "out": "a b"
+    },
+    {
+      "name": "emoji presentation selector survives",
+      "in": "\u2764\ufe0f",
+      "out": "\u2764\ufe0f"
+    },
+    {
+      "name": "zwj emoji sequence survives (woman technologist)",
+      "in": "\ud83d\udc69\u200d\ud83d\udcbb",
+      "out": "\ud83d\udc69\u200d\ud83d\udcbb"
+    },
+    {
+      "name": "zwj family sequence survives",
+      "in": "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66",
+      "out": "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67\u200d\ud83d\udc66"
+    },
+    {
+      "name": "rainbow flag (VS16 + zwj) survives",
+      "in": "\ud83c\udff3\ufe0f\u200d\ud83c\udf08",
+      "out": "\ud83c\udff3\ufe0f\u200d\ud83c\udf08"
+    },
+    {
+      "name": "skin tone modifier survives",
+      "in": "\ud83d\udc4d\ud83c\udffd",
+      "out": "\ud83d\udc4d\ud83c\udffd"
+    },
+    {
+      "name": "regional indicator flag survives",
+      "in": "\ud83c\uddee\ud83c\uddf3",
+      "out": "\ud83c\uddee\ud83c\uddf3"
+    },
+    {
+      "name": "stray zwj in prose is still removed",
+      "in": "a\u200db",
+      "out": "ab"
+    },
+    {
+      "name": "arabic number sign is meaningful and kept",
+      "in": "\u0600 x",
+      "out": "\u0600 x"
+    },
+    {
+      "name": "tabs are not treated as invisible junk",
+      "in": "a\tb",
+      "out": "a\tb"
+    },
+    {
+      "name": "curly double quotes straighten",
+      "in": "\u201chi\u201d",
+      "out": "\"hi\""
+    },
+    {
+      "name": "curly apostrophe straightens",
+      "in": "it\u2019s",
+      "out": "it's"
+    },
+    {
+      "name": "em dash becomes a hyphen",
+      "in": "a\u2014b",
+      "out": "a-b"
+    },
+    {
+      "name": "en dash becomes a hyphen",
+      "in": "a\u2013b",
+      "out": "a-b"
+    },
+    {
+      "name": "ellipsis expands",
+      "in": "wait\u2026",
+      "out": "wait..."
+    },
+    {
+      "name": "dashes:false leaves em dashes alone",
+      "in": "a\u2014b \u201cq\u201d",
+      "out": "a\u2014b \"q\"",
+      "options": {
+        "dashes": false
+      }
+    },
+    {
+      "name": "CRLF normalises to LF",
+      "in": "a\r\nb",
+      "out": "a\nb"
+    },
+    {
+      "name": "trailing whitespace goes",
+      "in": "a   \nb",
+      "out": "a\nb"
+    },
+    {
+      "name": "doubled spaces collapse",
+      "in": "a  b   c",
+      "out": "a b c"
+    },
+    {
+      "name": "runs of blank lines collapse to one",
+      "in": "a\n\n\n\n\nb",
+      "out": "a\n\nb"
+    },
+    {
+      "name": "leading indentation is preserved",
+      "in": "    indented  line",
+      "out": "    indented line"
+    },
+    {
+      "name": "line spacing double",
+      "in": "one\ntwo\nthree",
+      "out": "one\n\ntwo\n\nthree",
+      "options": {
+        "lineSpacing": "double"
+      }
+    },
+    {
+      "name": "bold markers go when markdown is on",
+      "in": "a **bold** word",
+      "out": "a bold word",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "heading marker goes",
+      "in": "# Title",
+      "out": "Title",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "inline code backticks go, code survives",
+      "in": "run `npm test` now",
+      "out": "run npm test now",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "fenced block keeps the code, drops the fences",
+      "in": "```python\nprint(1)\n```",
+      "out": "print(1)",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "link text survives, url goes",
+      "in": "see [docs](https://x.dev)",
+      "out": "see docs",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "keepLinks keeps the url",
+      "in": "see [docs](https://x.dev)",
+      "out": "see docs (https://x.dev)",
+      "options": {
+        "markdown": true,
+        "keepLinks": true
+      }
+    },
+    {
+      "name": "bullets normalise to hyphens",
+      "in": "* one\n\u2022 two",
+      "out": "- one\n- two",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "stripLists removes markers entirely",
+      "in": "- one\n2. two",
+      "out": "one\ntwo",
+      "options": {
+        "markdown": true,
+        "stripLists": true
+      }
+    },
+    {
+      "name": "blockquote marker goes",
+      "in": "> quoted",
+      "out": "quoted",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "snake_case is not italics",
+      "in": "call snake_case_name here",
+      "out": "call snake_case_name here",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "spaced asterisk is multiplication",
+      "in": "2 * 3 = 6",
+      "out": "2 * 3 = 6",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "markdown survives when the pass is off",
+      "in": "**bold**",
+      "out": "**bold**"
+    },
+    {
+      "name": "everything at once",
+      "in": "\ufeff# The\u200b Report\r\n\r\n\r\nHere\u2019s the \u201cfinal\u201d \u2014 **bold**  claims\u2026\u2060",
+      "out": "The Report\n\nHere's the \"final\" - bold claims...",
+      "options": {
+        "markdown": true
+      }
+    },
+    {
+      "name": "already clean text is unchanged",
+      "in": "Plain text, nothing wrong with it.",
+      "out": "Plain text, nothing wrong with it."
+    },
+    {
+      "name": "empty input stays empty",
+      "in": "",
+      "out": ""
+    }
+  ],
+  "scans": [
+    {
+      "name": "scan reports codepoint, name and count",
+      "in": "a\u200bb\u200bc\u00a0d",
+      "expect": [
+        {
+          "code": "U+200B",
+          "name": "ZERO WIDTH SPACE",
+          "count": 2
+        },
+        {
+          "code": "U+00A0",
+          "name": "NO-BREAK SPACE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "clean text scans empty",
+      "in": "nothing to see",
+      "expect": []
+    }
+  ]
+}

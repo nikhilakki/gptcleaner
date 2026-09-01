@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# macOS app build output
+macos/build/
+*.dSYM/
+
+# stray swiftc -e output
+main
+
+# bundler output
+dist/
+
+# personal skills live in the global pool (~/.agents/skills), not in this repo.
+# install them with: ./install.sh ~/.agents/skills/<name>
+skills/*/
+!skills/gptcleaner/

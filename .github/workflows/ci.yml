@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run the Python engine tests
+        run: python tests/test_gptcleaner.py
+      - name: Smoke-test the CLI
+        shell: bash
+        run: |
+          printf 'a\xe2\x80\x8bb \xe2\x80\x94 \xe2\x80\x9cc\xe2\x80\x9d' \
+            | python skills/gptcleaner/scripts/gptcleaner.py
+
+  javascript:
+    name: javascript engine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run the JS engine tests
+        run: node tests/test_cleaner.mjs
+
+  parity:
+    name: engines agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: Compare Python and JS output on every fixture
+        run: python tests/test_parity.py
+
+  macos-app:
+    name: macOS app builds
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build GPTCleaner.app
+        run: ./macos/build.sh
+      - name: Check the bundle
+        run: |
+          test -x macos/build/GPTCleaner.app/Contents/MacOS/GPTCleaner
+          test -f macos/build/GPTCleaner.app/Contents/Resources/web/cleaner.js
+          lipo -archs macos/build/GPTCleaner.app/Contents/MacOS/GPTCleaner
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GPTCleaner-app
+          path: macos/build/GPTCleaner.app

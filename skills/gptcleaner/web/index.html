@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gptcleaner</title>
+<meta name="description" content="strip the ghosts out of ai text: zero-width spaces, hidden watermarks, smart quotes, em dashes. runs entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👻</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;700&family=Shrikhand&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="ghosts" aria-hidden="true"></canvas>
+
+<div class="wrap">
+  <header>
+    <div class="wordmark">gpt<span class="ghost-dot">&middot;</span>cleaner</div>
+    <div class="badge">runs 100% in your browser</div>
+  </header>
+
+  <section class="hero">
+    <h1>your text is <span class="haunt">haunted</span>.</h1>
+    <p>ai output ships with ghosts: <b>zero-width spaces</b>, <b>hidden watermark
+    tags</b>, smart quotes, em dashes, weird blank lines. paste it below, hit
+    clean, and get plain editor-safe text. nothing ever leaves this page.</p>
+  </section>
+
+  <div class="chips" role="group" aria-label="cleaning options">
+    <label class="chip on"><input type="checkbox" id="opt-invisible" checked> 👻 invisible characters</label>
+    <label class="chip on"><input type="checkbox" id="opt-spaces" checked> ␣ odd spaces</label>
+    <label class="chip on"><input type="checkbox" id="opt-punctuation" checked> “ ” smart quotes</label>
+    <label class="chip on"><input type="checkbox" id="opt-dashes" checked> — em dashes</label>
+    <label class="chip on"><input type="checkbox" id="opt-spacing" checked> ¶ spacing</label>
+    <label class="chip md"><input type="checkbox" id="opt-markdown"> ** markdown</label>
+    <label class="chip md"><input type="checkbox" id="opt-striplists"> • bullets too</label>
+    <label class="spacing-pick">line spacing
+      <select id="opt-linespacing">
+        <option value="keep">keep</option>
+        <option value="single">single</option>
+        <option value="1.5">1.5</option>
+        <option value="double">double</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="tool">
+    <div class="pane in">
+      <h2>haunted input
+        <span class="tools">
+          <button class="mini" id="sample" type="button">summon sample</button>
+          <button class="mini" id="paste" type="button">paste</button>
+        </span>
+      </h2>
+      <textarea id="in" spellcheck="false"
+        placeholder="paste cursed text here..."></textarea>
+    </div>
+
+    <div class="mid">
+      <button id="clean" type="button" title="clean it (ctrl/cmd + enter)">clean it</button>
+      <div class="hint">ctrl/cmd + enter works too</div>
+    </div>
+
+    <div class="pane out">
+      <h2>clean output
+        <span class="tools">
+          <button class="mini" id="copy" type="button">copy</button>
+        </span>
+      </h2>
+      <textarea id="out" readonly spellcheck="false"
+        placeholder="exorcised text lands here..."></textarea>
+    </div>
+  </div>
+
+  <div class="radar">
+    <h3>ghost radar <span class="count" id="radar-count"></span></h3>
+    <div class="pills" id="pills"><span class="none">paste something and the radar starts sweeping.</span></div>
+  </div>
+
+  <div class="score" id="score" hidden></div>
+
+  <footer>
+    <div>no server, no tracking, no account. <span class="love">your ghosts stay yours.</span></div>
+    <div>also lives as a cli + agent skill &middot; python &amp; js, stdlib only</div>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="cleaner.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
