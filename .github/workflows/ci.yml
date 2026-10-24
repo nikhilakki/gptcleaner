@@ -13,13 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.9", "3.13"]
-        # setup-python has no 3.9 build for the newest ubuntu-latest image,
-        # so the oldest supported Python runs on an older Ubuntu instead.
-        exclude:
-          - { os: ubuntu-latest, python: "3.9" }
-        include:
-          - { os: ubuntu-22.04, python: "3.9" }
+        python: ["3.10", "3.13"]   # oldest supported, newest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
