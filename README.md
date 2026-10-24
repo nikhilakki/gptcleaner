@@ -41,7 +41,7 @@ Found 8 hidden/non-standard character(s) of 6 kind(s):
 
 ## Install
 
-**No dependencies anywhere.** Python 3.9+ for the CLI; the browser version and
+**No dependencies anywhere.** Python 3.10+ for the CLI; the browser version and
 the macOS app need nothing at all.
 
 ```bash
