@@ -110,8 +110,20 @@ A universal (Apple Silicon + Intel) menu-bar app:
 - **Open Cleaner Window** shows the full web UI in a native window.
 - Optional "Hide Dock Icon" for a pure menu-bar utility.
 
-Requires the Xcode command line tools (`xcode-select --install`) to build. The
-app is ad-hoc signed, so the first launch may need right-click → Open.
+Requires the Xcode command line tools (`xcode-select --install`) to build.
+
+**Downloaded it from Releases and macOS says "GPTCleaner" Not Opened?** The
+app is ad-hoc signed, not notarized, so Gatekeeper blocks any copy that was
+downloaded (right-click → Open no longer works since macOS 15). After moving it
+to `/Applications`, clear the download quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/GPTCleaner.app
+```
+
+Or open it once, then go to **System Settings → Privacy & Security** and click
+**Open Anyway**. Builds made locally with `./macos/build.sh` are never
+quarantined, so they open directly.
 
 ### The web app
 
