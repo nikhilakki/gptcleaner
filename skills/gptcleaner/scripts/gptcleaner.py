@@ -42,7 +42,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, asdict
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 # --------------------------------------------------------------------------
 # character tables

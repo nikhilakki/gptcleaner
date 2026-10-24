@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project uses [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-24
 
 ### Added
 - **JSON repair** (`--fix-json`, `--preset json`, `clean(text, {json: true})`,

@@ -14,7 +14,7 @@ WEB="$ROOT/skills/gptcleaner/web"
 BUILD="$HERE/build"
 APP="$BUILD/GPTCleaner.app"
 NAME="GPTCleaner"
-VERSION="1.1.0"
+VERSION="1.2.0"
 
 INSTALL=0; RUN=0
 for arg in "$@"; do
