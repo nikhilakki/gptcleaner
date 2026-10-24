@@ -9,6 +9,7 @@ suite reads, so the two engines cannot drift apart without a test going red.
 import json
 import pathlib
 import sys
+import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -104,6 +105,48 @@ class Idempotence(unittest.TestCase):
         for s in self.SAMPLES:
             out, _ = gptcleaner.clean(s)
             self.assertEqual(gptcleaner.scan(out), [], "residue left in %r" % out)
+
+
+class JsonRepair(unittest.TestCase):
+    """--fix-json: validation, fix counts, and no quadratic blow-up."""
+
+    OPT = gptcleaner.Options(json=True)
+
+    def test_reports_fixes_and_validity(self):
+        _, r = gptcleaner.clean('{\\\n&#x20; "a": [1,],\n}', self.OPT)
+        self.assertTrue(r["json"]["valid"])
+        self.assertIsNone(r["json"]["error"])
+        fixes = r["json"]["fixes"]
+        self.assertEqual((fixes["backslashes"], fixes["entities"], fixes["trailing_commas"]),
+                         (1, 1, 2))
+
+    def test_invalid_json_says_where(self):
+        _, r = gptcleaner.clean('{"a": 1\n "b": 2}', self.OPT)
+        self.assertFalse(r["json"]["valid"])
+        self.assertIn("line 2", r["json"]["error"])
+        self.assertIn("still invalid JSON", gptcleaner.summary_line(r))
+
+    def test_nan_is_not_strict_json(self):
+        _, r = gptcleaner.clean('{"a": NaN}', self.OPT)
+        self.assertFalse(r["json"]["valid"])
+
+    def test_text_mode_has_no_json_report(self):
+        _, r = gptcleaner.clean('{"a": 1}')
+        self.assertNotIn("json", r)
+
+    def test_is_idempotent(self):
+        once, _ = gptcleaner.clean('```\n{"a": [1,],}\\\n```', self.OPT)
+        twice, _ = gptcleaner.clean(once, self.OPT)
+        self.assertEqual(once, twice)
+
+    def test_large_input_is_linear(self):
+        # The trailing-comma check used to rescan all output per bracket: O(n^2).
+        big = json.dumps([{"a": [i]} for i in range(100000)], indent=1)
+        t = time.perf_counter()
+        out, r = gptcleaner.clean(big, self.OPT)
+        self.assertLess(time.perf_counter() - t, 5)
+        self.assertEqual(out, big)
+        self.assertTrue(r["json"]["valid"])
 
 
 class Safety(unittest.TestCase):

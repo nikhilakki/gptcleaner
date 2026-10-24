@@ -98,6 +98,8 @@ header {
 }
 .chip.on.md { background: var(--pink); color: var(--void); }
 .chip:has(input:focus-visible) { outline: 3px solid var(--cyan); outline-offset: 2px; }
+/* json mode replaces the text passes, so their chips step back */
+.chips.json-mode .chip:not(.json), .chips.json-mode .spacing-pick { opacity: .4; }
 .spacing-pick {
   margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
   font: 600 13px/1 var(--grot); color: var(--muted);
@@ -194,6 +196,7 @@ textarea::placeholder { color: var(--muted); opacity: .7; }
 }
 .score b { color: var(--lime); font-weight: 700; }
 .score .zero { color: var(--muted); }
+.score .bad { color: var(--pink); font-weight: 700; }
 .score[hidden] { display: none; }
 
 /* ---- footer ---- */

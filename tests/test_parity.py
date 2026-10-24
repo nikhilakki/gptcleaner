@@ -38,6 +38,13 @@ EXTRA = [
     ("one\n\ntwo", {"lineSpacing": "single"}),
     ("quote 'straight' \"already\"", {}),
     ("url https://x.dev/a_b_c stays", {"markdown": True}),
+    ("&#" + "0" * 50 + "32;{}", {"json": True}),
+    ("[1]&toString;&__proto__;&#x110000;&#xD800;", {"json": True}),
+    ("﻿```json\n{}\n```", {"json": True}),
+    ("[1, 2]\\", {"json": True}),
+    ('{\\"a\\": \\\\"}', {"json": True}),
+    ('[" ​\U000e0041",  \U000e0041 1,\n\n]', {"json": True}),
+    ("[ㅤ⠀­ 1 ,\t]", {"json": True}),
 ]
 
 

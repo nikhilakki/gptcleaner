@@ -40,6 +40,7 @@ Clipboard support: `pbcopy/pbpaste` (macOS), `wl-copy/wl-paste` (Wayland),
 | `spaces` | odd spaces + spacing |
 | `punctuation` | quotes, dashes, ellipsis |
 | `markdown` | full + markdown stripping |
+| `json` | JSON repair only (same as `--fix-json`) |
 | `none` | nothing (use with explicit flags or `--line-spacing`) |
 
 Flags apply *after* the preset, so `--preset markdown --keep-dashes` works.
@@ -57,13 +58,14 @@ Flags apply *after* the preset, so `--preset markdown --keep-dashes` works.
 | `--keep-links` | with `-m`, render links as `text (url)` |
 | `--blank-lines N` | max consecutive blank lines (default 1; `0` = none) |
 | `--line-spacing MODE` | `keep`, `single`, `1.5`, `double`, `triple`, or an integer |
+| `--fix-json` | repair pasted JSON instead of cleaning prose (see below) |
 
 ### Reporting
 | Flag | Effect |
 |---|---|
 | `-d, --detect` | table of hidden chars: codepoint, name, count, first line/col |
 | `-s, --stats` | one-line summary on stderr |
-| `--json` | `{text, chars_in, chars_out, hidden_removed, punctuation_fixed, summary}` |
+| `--json` | `{text, chars_in, chars_out, hidden_removed, punctuation_fixed, summary}`; with `--fix-json` also `json_valid`, `json_error`, `json_fixes` |
 
 ## What counts as "invisible"
 
@@ -117,6 +119,29 @@ Left alone on purpose: `snake_case` and `a_b_c` (underscores bounded by word
 characters), `2 * 3` (asterisks surrounded by spaces), numbered lists, tables'
 content, indentation.
 
+## JSON repair (`--fix-json`)
+
+Replaces every pass above. A single string-aware scan removes junk **outside**
+string literals only; string contents (escapes included) are copied verbatim.
+
+Outside strings it:
+- unwraps a ```` ``` ```` / ```` ```json ```` fence around the whole payload
+- drops backslashes (markdown hard line breaks)
+- turns whitespace-like HTML entities (`&#x20;`, `&#32;`, `&nbsp;`, `&ensp;`,
+  `&emsp;`, `&thinsp;`, `&Tab;`, `&NewLine;`, zero-width ones) into a space;
+  other entities such as `&quot;` are left for the parser to flag
+- deletes invisible characters and turns odd spaces and U+2028/U+2029 into a space
+- removes trailing commas before `}` and `]`
+- trims trailing whitespace on each line, and leading/trailing blank space
+
+If every `"` in the input is escaped (`{\"a\": 1}`), one level of escaping is
+removed first, and literal `\n` / `\t` between tokens become real whitespace.
+
+The result is checked with a strict parser (`NaN`/`Infinity` rejected). The
+summary ends in `valid JSON` or `still invalid JSON: <error> (line L, col C)`;
+when writing to stdout without `-s`, an invalid result is also reported on
+stderr. The exit code stays `0`.
+
 ## Exit codes
 
 `0` success. `1` no input and stdin is a TTY (prints help). Anything else is an
@@ -131,6 +156,9 @@ from gptcleaner import clean, Options, detect_report, scan
 text, report = clean(raw, Options(markdown=True, dashes=False))
 print(report["hidden_total"], report["removed"])   # Counter of char -> count
 ```
+
+With `Options(json=True)` the report gains
+`report["json"] = {"valid", "error", "fixes"}`.
 
 `scan(text)` returns `[(char, count, first_line, first_col), ...]` without
 modifying anything.

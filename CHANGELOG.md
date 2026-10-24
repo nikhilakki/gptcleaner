@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this project uses [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **JSON repair** (`--fix-json`, `--preset json`, `clean(text, {json: true})`,
+  and a **{ } json** chip in the web app): strips markdown hard-break
+  backslashes, whitespace HTML entities, invisible characters, odd spaces,
+  trailing commas and a wrapping code fence from pasted JSON, *only outside
+  string literals*, unwraps one level of stringified JSON, and reports whether
+  the result parses. Implemented in both engines, linear time, with shared
+  fixtures and parity inputs.
+
 ## [1.1.0] - 2026-09-01
 
 ### Added

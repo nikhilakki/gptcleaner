@@ -63,6 +63,24 @@ for (const s of ["﻿a​b c", "x⁠y"]) {
 // ---- options default to the full preset, like the Python clean() ----
 check("clean() with no options", GPTCleaner.clean("a​b — c").text, "ab - c");
 
+// ---- json repair: validation, fix counts, linear time ----
+{
+  const r = GPTCleaner.clean('{\\\n&#x20; "a": [1,],\n}', { json: true }).report;
+  check("json: valid", r.json.valid, true);
+  check("json: fix counts", [r.json.fixes.backslashes, r.json.fixes.entities, r.json.fixes.trailingCommas], [1, 1, 2]);
+  check("json: invalid is reported", GPTCleaner.clean('{"a": 1\n "b": 2}', { json: true }).report.json.valid, false);
+  check("json: text mode has no json report", GPTCleaner.clean('{"a": 1}').report.json, undefined);
+  const once = GPTCleaner.clean('```\n{"a": [1,],}\\\n```', { json: true }).text;
+  check("json: idempotent", GPTCleaner.clean(once, { json: true }).text, once);
+
+  // The trailing-comma check used to rescan all output per bracket: O(n^2).
+  const big = JSON.stringify(Array.from({ length: 100000 }, (_, i) => ({ a: [i] })), null, 1);
+  const t = Date.now();
+  const res = GPTCleaner.clean(big, { json: true });
+  check("json: large input is linear", Date.now() - t < 5000, true);
+  check("json: large input unchanged", res.text === big, true);
+}
+
 // ---- report ----
 const total = passed + failures.length;
 if (failures.length) {

@@ -125,6 +125,7 @@
     spacing: true, collapseSpaces: true, maxBlankLines: 1,
     markdown: false, keepLinks: false, stripLists: false,
     lineSpacing: "keep",
+    json: false,          // repair JSON instead: clean only outside strings
   };
 
   /* ---- passes ---------------------------------------------------------- */
@@ -231,6 +232,118 @@
     return text.split("\n").filter((l) => l.trim()).join("\n".repeat(gap));
   }
 
+  /* ---- JSON repair (opt-in: json: true) -------------------------------- */
+
+  // Explicit whitespace, not \s: Python and JS disagree on what \s matches.
+  const JSON_FENCE_RE = /^[ \t\n]*```[A-Za-z0-9_-]*[ \t]*\n([\s\S]*?)\n?[ \t\n]*```[ \t\n]*$/;
+  const ENTITY_RE = /^&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]{1,31});/;
+
+  // Only whitespace-like entities are decoded; anything else is left for the
+  // parser to flag, because decoding &quot; outside a string would invent syntax.
+  const JSON_SPACE_ENTITIES = {
+    nbsp: "\u00a0", ensp: "\u2002", emsp: "\u2003", thinsp: "\u2009",
+    tab: "\t", newline: "\n", zerowidthspace: "\u200b",
+    zwsp: "\u200b", zwnj: "\u200c", zwj: "\u200d",
+  };
+  const LINE_SEPARATORS = "\u2028\u2029";  // not JSON whitespace, unlike in JS source
+
+  function decodeEntity(body) {
+    if (body[0] === "#") {
+      const isHex = body[1] === "x" || body[1] === "X";
+      try { return String.fromCodePoint(parseInt(body.slice(isHex ? 2 : 1), isHex ? 16 : 10)); }
+      catch (e) { return null; }
+    }
+    const name = body.toLowerCase();   // own keys only: &constructor; is not a space
+    return Object.prototype.hasOwnProperty.call(JSON_SPACE_ENTITIES, name) ? JSON_SPACE_ENTITIES[name] : null;
+  }
+
+  function isJsonJunkSpace(ch) {
+    return " \t\n\r".includes(ch) || LINE_SEPARATORS.includes(ch) ||
+           isOddSpace(ch) || isInvisible(ch);
+  }
+
+  // Strip paste junk that sits *outside* string literals; strings are copied
+  // character for character.
+  function repairJson(text, removed) {
+    const fixes = { backslashes: 0, entities: 0, trailingCommas: 0, fences: 0, unescaped: 0 };
+
+    const m = text.match(JSON_FENCE_RE);
+    if (m) { text = m[1]; fixes.fences++; }
+
+    // Stringified JSON ({\"a\": 1}): every quote is escaped. Undo one level.
+    const unescaped = text.includes('\\"') && !/(?<!\\)"/.test(text);
+    if (unescaped) { text = text.replace(/\\(["\\])/g, "$1"); fixes.unescaped++; }
+
+    const chars = [...text];
+    const out = [];
+    let inString = false;
+    let comma = null;   // index in out of a comma followed only by whitespace so far
+    let i = 0;
+    const n = chars.length;
+    while (i < n) {
+      let ch = chars[i];
+
+      if (inString) {
+        out.push(ch);
+        if (ch === "\\" && i + 1 < n) { out.push(chars[i + 1]); i += 2; continue; }
+        if (ch === '"') inString = false;
+        i++;
+        continue;
+      }
+
+      // Never valid outside a string: markdown hard breaks, or the literal
+      // \n \t of a stringified dump.
+      if (ch === "\\") {
+        fixes.backslashes++;
+        const next = i + 1 < n ? chars[i + 1] : "";
+        i++;
+        if (!(unescaped && (next === "n" || next === "t" || next === "r"))) continue;
+        ch = { n: "\n", t: "\t", r: " " }[next];
+      }
+
+      if (ch === "&") {
+        const em = chars.slice(i, i + 40).join("").match(ENTITY_RE);
+        const decoded = em && decodeEntity(em[1]);
+        if (decoded && isJsonJunkSpace(decoded)) {
+          fixes.entities++;
+          ch = " ";
+          i += em[0].length - 1;
+        }
+      }
+
+      if (LINE_SEPARATORS.includes(ch) || isOddSpace(ch)) {
+        removed.set(ch, (removed.get(ch) || 0) + 1);
+        ch = " ";
+      } else if (isInvisible(ch)) {
+        removed.set(ch, (removed.get(ch) || 0) + 1);
+        i++;
+        continue;
+      }
+
+      if (ch === "\n") {
+        while (out.length && (out[out.length - 1] === " " || out[out.length - 1] === "\t")) out.pop();
+      } else if ((ch === "}" || ch === "]") && comma !== null) {
+        out[comma] = "";
+        fixes.trailingCommas++;
+      }
+      if (ch === ",") comma = out.length;
+      else if (ch !== " " && ch !== "\t" && ch !== "\n") comma = null;
+      if (ch === '"') inString = true;
+      out.push(ch);
+      i++;
+    }
+
+    let result = out.join("").replace(/^[ \t\n]+/, "");
+    if (!inString) result = result.replace(/[ \t\n]+$/, "");
+    return { text: result, fixes };
+  }
+
+  // null when text is strict JSON, else the parser's complaint.
+  function jsonError(text) {
+    try { JSON.parse(text); } catch (e) { return String(e && e.message || e); }
+    return null;
+  }
+
   /* ---- public API ------------------------------------------------------ */
 
   function clean(text, options) {
@@ -240,27 +353,35 @@
     const replaced = new Map();   // char -> count (punctuation)
 
     text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    if (opt.invisible || opt.spaces) text = stripInvisible(text, opt, removed);
-    if (opt.markdown) text = stripMarkdown(text, opt);
-    if (opt.punctuation || opt.dashes) text = fixPunctuation(text, opt, replaced);
-    if (opt.spacing) text = fixSpacing(text, opt);
-    text = applyLineSpacing(text, opt.lineSpacing);
+    let fixes = null;
+    if (opt.json) {
+      // The text passes would rewrite string values, so JSON mode replaces them.
+      ({ text, fixes } = repairJson(text, removed));
+    } else {
+      if (opt.invisible || opt.spaces) text = stripInvisible(text, opt, removed);
+      if (opt.markdown) text = stripMarkdown(text, opt);
+      if (opt.punctuation || opt.dashes) text = fixPunctuation(text, opt, replaced);
+      if (opt.spacing) text = fixSpacing(text, opt);
+      text = applyLineSpacing(text, opt.lineSpacing);
+    }
 
     let hidden = 0;
     removed.forEach((n) => { hidden += n; });
     let fixed = 0;
     replaced.forEach((n) => { fixed += n; });
 
-    return {
-      text,
-      report: {
-        charsIn: [...original].length,
-        charsOut: [...text].length,
-        removed, replaced,
-        hiddenTotal: hidden,
-        punctuationTotal: fixed,
-      },
+    const report = {
+      charsIn: [...original].length,
+      charsOut: [...text].length,
+      removed, replaced,
+      hiddenTotal: hidden,
+      punctuationTotal: fixed,
     };
+    if (fixes) {
+      const error = jsonError(text);
+      report.json = { valid: error === null, error, fixes };
+    }
+    return { text, report };
   }
 
   // Find hidden/odd characters without changing anything.
