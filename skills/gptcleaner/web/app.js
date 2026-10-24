@@ -10,7 +10,7 @@
     invisible: "opt-invisible", spaces: "opt-spaces",
     punctuation: "opt-punctuation", dashes: "opt-dashes",
     spacing: "opt-spacing", markdown: "opt-markdown",
-    stripLists: "opt-striplists",
+    stripLists: "opt-striplists", json: "opt-json",
   };
 
   function options() {
@@ -24,9 +24,16 @@
   document.querySelectorAll(".chip input").forEach((box) => {
     box.addEventListener("change", () => {
       box.closest(".chip").classList.toggle("on", box.checked);
+      syncJsonMode();
       if ($("in").value) doClean(false);
     });
   });
+
+  // json mode replaces the text passes; dim their chips so that is visible
+  function syncJsonMode() {
+    document.querySelector(".chips").classList.toggle("json-mode", $("opt-json").checked);
+  }
+  syncJsonMode();
   $("opt-linespacing").addEventListener("change", () => $("in").value && doClean(false));
 
   /* ================= radar (live scan) ================= */
@@ -73,14 +80,31 @@
     bits.push(report.hiddenTotal
       ? "<b>" + fmt(report.hiddenTotal) + " ghost" + (report.hiddenTotal === 1 ? "" : "s") + " banished</b>"
       : '<span class="zero">no ghosts found</span>');
-    bits.push(report.punctuationTotal
-      ? "<b>" + fmt(report.punctuationTotal) + "</b> smart marks straightened"
-      : '<span class="zero">punctuation already straight</span>');
+    if (report.json) {
+      const f = report.json.fixes;
+      const done = [
+        [f.backslashes, "stray backslash", "stray backslashes"],
+        [f.entities, "html entity", "html entities"],
+        [f.trailingCommas, "trailing comma", "trailing commas"],
+        [f.fences, "code fence", "code fences"],
+        [f.unescaped, "escaping layer", "escaping layers"],
+      ].filter(([n]) => n).map(([n, one, many]) => "<b>" + fmt(n) + "</b> " + (n === 1 ? one : many));
+      if (done.length) bits.push(done.join(", ") + " removed");
+      bits.push(report.json.valid
+        ? "<b>valid json</b>"
+        : '<span class="bad">still invalid: ' + esc(report.json.error) + "</span>");
+    } else {
+      bits.push(report.punctuationTotal
+        ? "<b>" + fmt(report.punctuationTotal) + "</b> smart marks straightened"
+        : '<span class="zero">punctuation already straight</span>');
+    }
     const score = $("score");
     score.innerHTML = bits.join(" &nbsp;|&nbsp; ");
     score.hidden = false;
 
-    if (burst) ghostBurst(Math.min(report.hiddenTotal + report.punctuationTotal, 42) || 8);
+    const jsonFixed = report.json
+      ? Object.values(report.json.fixes).reduce((a, n) => a + n, 0) : 0;
+    if (burst) ghostBurst(Math.min(report.hiddenTotal + report.punctuationTotal + jsonFixed, 42) || 8);
   }
 
   $("clean").addEventListener("click", () => doClean(true));
@@ -111,6 +135,18 @@
 
   /* haunted sample: built programmatically so this file stays clean */
   $("sample").addEventListener("click", () => {
+    if ($("opt-json").checked) {
+      // json pasted out of a rich-text editor: hard-break backslashes, &#x20;
+      // indents, a no-break space, a zero-width space and trailing commas
+      const I = "&#x20; ";
+      $("in").value = "```json\n{\\\n" +
+        I + '"screen": "Splash Screen",\\\n' +
+        I + '"colors": ["#4AA3F4", "#1D3873",],\\\n' +
+        I + '"note": "values like \\"&nbsp;\\" stay exactly as written",​\\\n' +
+        "}\n```";
+      sweepRadar(); doClean(true);
+      return;
+    }
     const ZW = "​", NB = " ", SH = "­", WJ = "⁠",
           BOM = "﻿", TAG = "\u{E0057}\u{E0054}\u{E0046}";
     $("in").value =

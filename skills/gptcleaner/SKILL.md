@@ -41,6 +41,7 @@ Use the absolute path to `scripts/gptcleaner.py` inside this skill directory.
 | "keep the links" | `-m --keep-links` |
 | "double space it" | `--line-spacing double` |
 | needs machine-readable output | `--json` |
+| "fix this JSON", pasted JSON will not parse | `--fix-json` |
 
 Defaults clean invisibles + odd spaces + smart punctuation + spacing.
 **Markdown stripping is opt-in (`-m`)** because it is the destructive one.
@@ -70,6 +71,9 @@ clipboard, or `--json` when you need the per-codepoint counts.
 
 ## Guardrails
 
+- For JSON, use `--fix-json`, never the default passes: they would rewrite
+  quotes, dashes and spacing *inside* string values. `--fix-json` only touches
+  what is outside strings and reports whether the result parses.
 - Do not clean source code with `-m`: markdown stripping eats `*`, `_` and
   backticks. For code, use `--preset zero-width` (invisibles only).
 - Do not run it on a file the user has not asked you to modify. `-i` rewrites

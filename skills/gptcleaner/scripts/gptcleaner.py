@@ -156,6 +156,7 @@ class Options:
     keep_links: bool = False      # [t](u) -> "t (u)" instead of "t"
     strip_lists: bool = False     # also remove "- " / "1. " list markers
     line_spacing: str = "keep"    # keep | single | 1.5 | double | triple | <int>
+    json: bool = False            # repair JSON instead: clean only outside strings
 
 
 PRESETS = {
@@ -166,7 +167,8 @@ PRESETS = {
     "spaces": dict(invisible=False, punctuation=False, dashes=False),
     "punctuation": dict(invisible=False, spacing=False, spaces=False),
     "markdown": dict(markdown=True),
-    "none": dict(invisible=False, spaces=False, punctuation=False,
+    "json": dict(json=True),
+    "none":dict(invisible=False, spaces=False, punctuation=False,
                  dashes=False, spacing=False),
 }
 
@@ -293,6 +295,138 @@ def apply_line_spacing(text: str, mode: str) -> str:
     return ("\n" * gap).join(lines)
 
 
+# --------------------------------------------------------------------------
+# JSON repair (opt-in: --fix-json)
+# --------------------------------------------------------------------------
+
+# Explicit whitespace, not \s: Python and JS disagree on what \s matches.
+_JSON_FENCE_RE = re.compile(r"[ \t\n]*```[A-Za-z0-9_-]*[ \t]*\n(.*?)\n?[ \t\n]*```[ \t\n]*\Z", re.S)
+_ENTITY_RE = re.compile(r"&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]{1,31});")
+_BARE_QUOTE_RE = re.compile(r'(?<!\\)"')
+
+# Only whitespace-like entities are decoded; anything else is left for the
+# parser to flag, because decoding &quot; outside a string would invent syntax.
+JSON_SPACE_ENTITIES = {
+    "nbsp": " ", "ensp": " ", "emsp": " ", "thinsp": " ",
+    "tab": "\t", "newline": "\n", "zerowidthspace": "​",
+    "zwsp": "​", "zwnj": "‌", "zwj": "‍",
+}
+LINE_SEPARATORS = "  "  # not JSON whitespace, unlike in JS source
+
+
+def _decode_entity(body: str) -> str | None:
+    if body[0] == "#":
+        try:
+            if body[1] in "xX":
+                return chr(int(body[2:], 16))
+            return chr(int(body[1:]))
+        except (ValueError, OverflowError):
+            return None
+    return JSON_SPACE_ENTITIES.get(body.lower())
+
+
+def _is_json_junk_space(ch: str) -> bool:
+    return (ch in " \t\n\r" or ch in LINE_SEPARATORS
+            or is_odd_space(ch) or is_invisible(ch))
+
+
+def repair_json(text: str, removed: Counter) -> tuple[str, dict]:
+    """Strip paste junk that sits *outside* string literals; strings are copied
+    character for character. Returns (text, fixes)."""
+    fixes = {"backslashes": 0, "entities": 0, "trailing_commas": 0,
+             "fences": 0, "unescaped": 0}
+
+    m = _JSON_FENCE_RE.match(text)
+    if m:
+        text = m.group(1)
+        fixes["fences"] += 1
+
+    # Stringified JSON ({\"a\": 1}): every quote is escaped. Undo one level.
+    unescaped = '\\"' in text and not _BARE_QUOTE_RE.search(text)
+    if unescaped:
+        text = re.sub(r'\\(["\\])', r"\1", text)
+        fixes["unescaped"] += 1
+
+    out: list[str] = []
+    in_string = False
+    comma = None   # index in out of a comma followed only by whitespace so far
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+
+        # Never valid outside a string: markdown hard breaks, or the literal
+        # \n \t of a stringified dump.
+        if ch == "\\":
+            fixes["backslashes"] += 1
+            nxt = text[i + 1] if i + 1 < n else ""
+            i += 1
+            if not (unescaped and nxt in ("n", "t", "r")):
+                continue
+            ch = {"n": "\n", "t": "\t", "r": " "}[nxt]
+
+        if ch == "&":
+            em = _ENTITY_RE.match(text[i:i + 40])   # same window as cleaner.js
+            decoded = em and _decode_entity(em.group(1))
+            if decoded and _is_json_junk_space(decoded):
+                fixes["entities"] += 1
+                ch = " "
+                i += len(em.group(0)) - 1
+
+        if ch in LINE_SEPARATORS or is_odd_space(ch):
+            removed[ch] += 1
+            ch = " "
+        elif is_invisible(ch):
+            removed[ch] += 1
+            i += 1
+            continue
+
+        if ch == "\n":
+            while out and out[-1] in (" ", "\t"):
+                out.pop()
+        elif ch in ("}", "]") and comma is not None:
+            out[comma] = ""
+            fixes["trailing_commas"] += 1
+        if ch == ",":
+            comma = len(out)
+        elif ch not in (" ", "\t", "\n"):
+            comma = None
+        if ch == '"':
+            in_string = True
+        out.append(ch)
+        i += 1
+
+    result = "".join(out).lstrip(" \t\n")
+    if not in_string:
+        result = result.rstrip(" \t\n")
+    return result, fixes
+
+
+def _reject_constant(name: str):
+    raise ValueError("%s is not valid JSON" % name)
+
+
+def json_error(text: str) -> str | None:
+    """None when text is strict JSON, else the parser's complaint."""
+    try:
+        json.loads(text, parse_constant=_reject_constant)
+    except json.JSONDecodeError as e:
+        return "%s (line %d, col %d)" % (e.msg, e.lineno, e.colno)
+    except (ValueError, RecursionError) as e:
+        return str(e)
+    return None
+
+
 def clean(text: str, opt: Options | None = None) -> tuple[str, dict]:
     """Clean text; return (cleaned_text, report). Defaults to the full preset."""
     opt = opt or Options()
@@ -301,15 +435,20 @@ def clean(text: str, opt: Options | None = None) -> tuple[str, dict]:
     replaced: Counter = Counter()
 
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-    if opt.invisible or opt.spaces:
-        text = strip_invisible(text, opt, removed)
-    if opt.markdown:
-        text = strip_markdown(text, opt)
-    if opt.punctuation or opt.dashes:
-        text = fix_punctuation(text, opt, replaced)
-    if opt.spacing:
-        text = fix_spacing(text, opt)
-    text = apply_line_spacing(text, opt.line_spacing)
+    fixes = None
+    if opt.json:
+        # The text passes would rewrite string values, so JSON mode replaces them.
+        text, fixes = repair_json(text, removed)
+    else:
+        if opt.invisible or opt.spaces:
+            text = strip_invisible(text, opt, removed)
+        if opt.markdown:
+            text = strip_markdown(text, opt)
+        if opt.punctuation or opt.dashes:
+            text = fix_punctuation(text, opt, replaced)
+        if opt.spacing:
+            text = fix_spacing(text, opt)
+        text = apply_line_spacing(text, opt.line_spacing)
 
     report = {
         "chars_in": len(original),
@@ -320,6 +459,9 @@ def clean(text: str, opt: Options | None = None) -> tuple[str, dict]:
         "replaced": replaced,
         "hidden_total": sum(removed.values()),
     }
+    if fixes is not None:
+        error = json_error(text)
+        report["json"] = {"valid": error is None, "error": error, "fixes": fixes}
     return text, report
 
 
@@ -368,6 +510,17 @@ def summary_line(report: dict) -> str:
     if fixed:
         parts.append("%d smart punctuation mark%s normalized"
                      % (fixed, "" if fixed == 1 else "s"))
+    js = report.get("json")
+    if js:
+        labels = {"backslashes": ("stray backslash", "stray backslashes"),
+                  "entities": ("HTML entity", "HTML entities"),
+                  "trailing_commas": ("trailing comma", "trailing commas"),
+                  "fences": ("code fence", "code fences"),
+                  "unescaped": ("escaping layer", "escaping layers")}
+        done = ["%d %s" % (n, labels[k][n != 1]) for k, n in js["fixes"].items() if n]
+        if done:
+            parts.append("removed " + ", ".join(done))
+        parts.append("valid JSON" if js["valid"] else "still invalid JSON: " + js["error"])
     return " | ".join(parts)
 
 
@@ -468,6 +621,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="max consecutive blank lines (default: 1)")
     g.add_argument("--line-spacing", default="keep", metavar="MODE",
                    help="keep | single | 1.5 | double | triple | <n>")
+    g.add_argument("--fix-json", action="store_true",
+                   help="repair pasted JSON: strip junk outside strings, "
+                        "leave string values untouched (replaces the passes above)")
 
     r = p.add_argument_group("reporting")
     r.add_argument("-d", "--detect", action="store_true",
@@ -503,6 +659,8 @@ def options_from_args(a: argparse.Namespace) -> Options:
         opt.strip_lists = True
     if a.keep_links:
         opt.keep_links = True
+    if a.fix_json:
+        opt.json = True
     opt.max_blank_lines = a.blank_lines
     opt.line_spacing = a.line_spacing
     return opt
@@ -534,15 +692,19 @@ def main(argv: list[str] | None = None) -> int:
     cleaned, report = clean(text, options_from_args(args))
 
     if args.json:
-        out = json.dumps({
+        out = {
             "text": cleaned,
             "chars_in": report["chars_in"],
             "chars_out": report["chars_out"],
             "hidden_removed": {code(c): n for c, n in report["removed"].items()},
             "punctuation_fixed": {code(c): n for c, n in report["replaced"].items()},
             "summary": summary_line(report),
-        }, ensure_ascii=False, indent=2)
-        print(out)
+        }
+        if "json" in report:
+            out["json_valid"] = report["json"]["valid"]
+            out["json_error"] = report["json"]["error"]
+            out["json_fixes"] = report["json"]["fixes"]
+        print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 
     # write
@@ -561,6 +723,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.stats and not (args.clipboard or dest):
         print(summary_line(report), file=sys.stderr)
+    elif "json" in report and not report["json"]["valid"] and not (args.clipboard or dest):
+        print("gptcleaner: still invalid JSON: " + report["json"]["error"], file=sys.stderr)
     return 0
 
 

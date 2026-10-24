@@ -10,7 +10,7 @@
   <a href="#install"><img alt="no dependencies" src="https://img.shields.io/badge/dependencies-none-c9f24b?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-5cd6ff?style=flat-square"></a>
   <a href="#the-macos-app"><img alt="macOS app" src="https://img.shields.io/badge/macOS-app-ff4fa3?style=flat-square"></a>
-  <a href=".github/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/tests-113-c9f24b?style=flat-square"></a>
+  <a href=".github/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/tests-158-c9f24b?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -75,6 +75,7 @@ python3 gptcleaner.py notes.txt -i           # rewrite the file
 python3 gptcleaner.py notes.txt --detect     # report only, change nothing
 python3 gptcleaner.py notes.txt -m           # also strip markdown
 python3 gptcleaner.py notes.txt --json       # machine-readable report
+python3 gptcleaner.py broken.json --fix-json # repair pasted JSON, strings untouched
 ```
 
 By default it removes invisible characters, converts exotic spaces to plain
@@ -89,6 +90,7 @@ Presets for narrower jobs:
 --preset punctuation   # just the quotes and dashes
 --preset spaces        # just whitespace
 --preset markdown      # everything, including markdown
+--preset json          # repair JSON (same as --fix-json)
 ```
 
 Full flag reference: [`skills/gptcleaner/reference.md`](skills/gptcleaner/reference.md).
@@ -140,6 +142,30 @@ pointer block spliced into the instruction file they already read
 and others). Blocks are fenced with markers, so installs are idempotent and
 uninstall restores files exactly.
 
+### Repairing pasted JSON
+
+JSON copied out of a chat UI, Notion or a rich-text editor often arrives with
+markdown hard-break backslashes at line ends, `&#x20;` / `&nbsp;` indents, a code
+fence around it, a zero-width space between tokens, or trailing commas.
+`--fix-json` (or the **{ } json** chip in the web app) walks the text with a
+string-aware scanner and removes that junk **only outside string literals**.
+String values come through character for character, so the smart-quote,
+dash and spacing passes are switched off in this mode.
+
+It also unwraps one level of stringified JSON (`{\"a\": 1}`), then validates
+the result: the summary says `valid JSON` or names the parser error with its
+line and column.
+
+```console
+$ pbpaste | gptcleaner --fix-json -s
+{
+  "screen": "Splash Screen",
+  "colors": ["#4AA3F4", "#1D3873"],
+  "note": "values like \"&nbsp;\" stay exactly as written"
+}
+161 chars -> 127 chars | 2 hidden characters removed (NO-BREAK SPACE x1, ZERO WIDTH SPACE x1) | removed 4 stray backslashes, 3 HTML entities, 2 trailing commas, 1 code fence | valid JSON
+```
+
 ## What counts as a ghost
 
 Detection is by Unicode **category**, not a hand-maintained blocklist, so new
@@ -186,9 +212,9 @@ They are kept honest by a shared fixture file: both test suites read
 character by character.
 
 ```bash
-python3 tests/test_gptcleaner.py    # 55 tests, stdlib unittest
-node    tests/test_cleaner.mjs      # 58 checks
-python3 tests/test_parity.py        # both engines agree on 61 inputs
+python3 tests/test_gptcleaner.py    # 77 tests, stdlib unittest
+node    tests/test_cleaner.mjs      # 81 checks
+python3 tests/test_parity.py        # both engines agree on 84 inputs
 ```
 
 That harness has already earned its keep — it caught an empty character table

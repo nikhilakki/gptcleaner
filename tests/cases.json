@@ -269,6 +269,134 @@
       "name": "empty input stays empty",
       "in": "",
       "out": ""
+    },
+    {
+      "name": "json: markdown hard-break backslashes and &#x20; indents are removed",
+      "in": "{\\\n&#x20; \"screen\": \"Splash\",\\\n&#x20; \"colors\": [\"#4AA3F4\"]\\\n}",
+      "out": "{\n  \"screen\": \"Splash\",\n  \"colors\": [\"#4AA3F4\"]\n}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: string values are never touched",
+      "in": "{\u00a0\"a\": \"x\u200by &nbsp; \\\\ \u201cq\u201d \u2014  ,}  \"\u200b}",
+      "out": "{ \"a\": \"x\u200by &nbsp; \\\\ \u201cq\u201d \u2014  ,}  \"}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: trailing commas go, nested and across lines",
+      "in": "{\"a\": [1, 2,], \"b\": {\"c\": 3,\n},\n}",
+      "out": "{\"a\": [1, 2], \"b\": {\"c\": 3\n}\n}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: a comma inside a string is not a trailing comma",
+      "in": "[\"a,\", \"b,]\"]",
+      "out": "[\"a,\", \"b,]\"]",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: code fence around the payload is unwrapped",
+      "in": "```json\n{\"ok\": true}\n```\n",
+      "out": "{\"ok\": true}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: invisible and odd characters between tokens",
+      "in": "\ufeff{\"a\":\u200b 1,\u3000\"b\": [\udb40\udc57true]}",
+      "out": "{\"a\": 1, \"b\": [true]}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: whitespace entities in every spelling",
+      "in": "{&nbsp;\"a\":&#32;1,&#x09;\"b\":&NBSP;2&#x2028;}",
+      "out": "{ \"a\": 1, \"b\": 2 }",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: non-space entities are left for the parser to flag",
+      "in": "{\"a\": 1}&amp;&quot;&constructor;",
+      "out": "{\"a\": 1}&amp;&quot;&constructor;",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: stringified JSON loses one escaping layer",
+      "in": "{\\\"a\\\": \\\"b\\\\\\\\c\\\", \\\"q\\\": \\\"say \\\\\\\"hi\\\\\\\"\\\"}",
+      "out": "{\"a\": \"b\\\\c\", \"q\": \"say \\\"hi\\\"\"}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: literal \\n and \\t in a stringified dump become whitespace",
+      "in": "{\\n\\t\\\"a\\\": \\\"x\\\\ny\\\"\\n}",
+      "out": "{\n\t\"a\": \"x\\ny\"\n}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: line separators outside strings become spaces, inside are kept",
+      "in": "{\"a\":\u2028\"x \u2028y\"}",
+      "out": "{\"a\": \"x \u2028y\"}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: trailing whitespace is trimmed outside strings only",
+      "in": "{   \n  \"a\": 1   \n}   ",
+      "out": "{\n  \"a\": 1\n}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: crlf line endings become lf",
+      "in": "{\r\n  \"a\": 1\r\n}\r\n",
+      "out": "{\n  \"a\": 1\n}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: an unterminated string keeps its tail",
+      "in": "{\"a\": \"open   ",
+      "out": "{\"a\": \"open   ",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: text passes are skipped, so smart quotes and dashes stay put",
+      "in": "{\"t\": \"It\u2019s \u201cfine\u201d \u2014 really\u2026\"}",
+      "out": "{\"t\": \"It\u2019s \u201cfine\u201d \u2014 really\u2026\"}",
+      "options": {
+        "json": true
+      }
+    },
+    {
+      "name": "json: empty input stays empty",
+      "in": "",
+      "out": "",
+      "options": {
+        "json": true
+      }
     }
   ],
   "scans": [
